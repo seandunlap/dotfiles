@@ -8,6 +8,11 @@
 # Icon must end with two \r
 Icon
 
+mmap_address.bin
+
+GPATH
+GRTAGS
+GTAGS
 
 # Thumbnails
 ._*
