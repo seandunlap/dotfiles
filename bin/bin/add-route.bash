@@ -2,7 +2,7 @@
 
 set +x
 for i in {0..4}; do
-  sudo route -n flush
+  sudo route -n flush $i
 done
 sleep 5
 
