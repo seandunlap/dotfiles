@@ -1,0 +1,112 @@
+#!/bin/bash
+
+function unziplibs {
+
+    CxCrev=$1
+    subdir=$2
+    basedir=..
+
+    if [ "$subdir" == "." ] ; then
+        basedir=.
+    fi
+
+    # Try to find files dated today and yesterday.
+    # We generally don't see files dated today, since they come from last night's job.
+        todayZip=`ls --sort=size     $today*$CxCrev.zip 2>/dev/null | head -1`
+#        todayZip=`ls --sort=size           *$CxCrev.zip 2>/dev/null | head -1`
+    yesterdayZip=`ls --sort=size $yesterday*$CxCrev.zip 2>/dev/null | head -1`
+
+    # Use today's zip file, if it exists.  Otherwise, try yesterday's.
+    zipfile=$todayZip
+    if [ "$zipfile" == "" ] ; then
+        zipfile=$yesterdayZip
+    fi
+
+    if [ "$zipfile" == "" ] ; then
+        echo "Didn't find a zip file for $subdir"
+        return
+    fi
+
+
+    if [ ! -d $subdir ] ; then
+        mkdir $subdir
+    fi
+    cd $subdir
+
+    echo "Unzipping $zipfile into $subdir"
+    unzip -o $basedir/$zipfile
+    chmod g+w *
+    rm -rf *_sip*
+
+    # Rename the directories to remove "_bfc3" or "_bfc4" from the name.
+    bfc3dirs=`ls -d *_bfc3* 2>/dev/null`
+    bfc4dirs=`ls -d *_bfc4* 2>/dev/null`
+    if [ "${subdir:0:8}" == "branch_3" ] ; then
+        for d in $bfc4dirs $bfc3dirs ; do
+            newdir=${d/_bfc3/}
+            newdir=${newdir/_bfc4/}
+            rm -rf     ${newdir}
+            mv -v  $d  ${newdir}
+        done
+    else
+        for d in $bfc3dirs $bfc4dirs ; do
+            newdir=${d/_bfc3/}
+            newdir=${newdir/_bfc4/}
+            rm -rf     ${newdir}
+            mv -v  $d  ${newdir}
+        done
+    fi
+
+    # Rename the directories to remove "_ipv4" or "_ipv6" from the name.
+    for d in `ls -d *_ipv4* *_ipv6* 2>/dev/null` ; do
+        newdir=${d/_ipv4/}
+        newdir=${newdir/_ipv6/}
+        rm -rf     ${newdir}
+        mv -v  $d  ${newdir}
+    done
+
+    cd $basedir
+}
+
+
+function debug {
+    echo "DEBUG: $*"
+}
+
+
+cd /projects/bfc/CxClibs
+
+# Get today's and yesterday's date in YY_MM_DD format.
+    today=`date              +%y_%m_%d`
+yesterday=`date -d yesterday +%y_%m_%d`
+
+
+# The head zip files will change, so watch for it.
+head=
+for b in cadillac daimler ; do
+    ls *_$b.zip >/dev/null 2>&1
+    if [ $? == 0 ] ; then
+        head=$b
+    fi
+done
+
+# Unzip the selected library as the head...
+if [ "$head" != "" ] ; then
+    unziplibs $head     head_new
+fi
+
+# Unzip the Antelope branch libraries.
+unziplibs _antelope branchAntelope_new
+
+unziplibs _429      branch_4_2
+
+# Unzip the 3.9.4.x branch libraries, with "2_394" in the name.
+# Our branch is called 3.9.7.x, though.
+unziplibs 2_394     branch_3_9_7
+
+# Unzip the 3.10.x branch libraries, with "_310" in the name.
+unziplibs _310      branch_3_10
+
+# Unzip the MsoMaint branch libraries, with "2_39" in the name.
+# Our branch is called 3.9.31.x, though.
+unziplibs 2_39     branch_3_9_31

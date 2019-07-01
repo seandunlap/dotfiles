@@ -1,0 +1,80 @@
+#!/bin/bash
+
+binfile=$1
+
+if [[ "$1" == "help" || "$1" == "?" || "$2" != "" ]] ; then
+    echo "Usage: dasm [binary-file]"
+    echo
+    echo "If the binary file name is omitted, a menu of elf files will be presented."
+    echo "If the binary file name is specified, it may be a .elf or a .o file."
+    exit
+fi
+
+# If not elf file was specified on the command line...
+if [ "$binfile" == "" ] ; then
+
+    elfcount=0
+
+    # Try to find an elf file in a subdirectory, listing newest ones first.
+    for m in `ls -t eCos.elf */eCos.elf 2>/dev/null` ; do
+        ((elfcount = elfcount + 1))
+        elfs[elfcount]=$m
+    done
+
+    # If elf files were found, prompt with a menu.
+    if [ $elfcount == 1 ] ; then
+        binfile=${elfs[1]}
+    elif [ $elfcount != 0 ] ; then
+        echo "Choose elf file:"
+        i=1
+        while [ $i -le $elfcount ] ; do
+            echo "  $i) ${elfs[i]}"
+            ((i = i + 1 ))
+        done
+        read -p "Enter 1-$elfcount: " response
+        if [ "$response" == "" ] ; then
+            exit
+        fi
+        if [ $response -lt 1 -o $response -gt $elfcount ] ; then
+            echo "Error: Response must be from 1 to $elfcount"
+            exit
+        else
+            binfile=${elfs[response]}
+        fi
+    else
+        read -p "Enter elf file name: " binfile junk
+    fi
+
+fi
+
+if [ "$binfile" == "" ] ; then
+    exit
+fi
+
+fname=${binfile%.*}
+ftype=${binfile##*.}
+
+case $ftype in
+    o|elf) ;;
+    *)  echo "Error: Binary file must be object (.o) or elf (.elf)."
+        exit
+        ;;
+esac
+
+if [ ! -e $binfile ] ; then
+    echo "Error: File not found: $binfile"
+    exit
+fi
+
+bindir="${binfile%/*}"
+if [ "$bindir" == "$binfile" ] ; then
+    bindir="."
+fi
+
+sname=${fname##*/}
+if [ $sname == eCos ] ; then
+    sname=ecram
+fi
+
+echo "Disassembling $binfile into $bindir/$sname.dasm..."
+mipsisa32-elf-objdump -d --demangle $binfile >$bindir/$sname.dasm

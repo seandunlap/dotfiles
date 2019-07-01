@@ -1,0 +1,104 @@
+#!/bin/bash
+
+function give_help {
+    echo "This script searches the company phone directory for a particular name.  It"
+    echo "prints the last name, first name, telephone number, and e-mail address."
+    echo
+    echo "Usage: phone <string> [<string> ...] [option ...]"
+    echo
+    echo "Parameters:"
+    echo "    string  - one or more strings to be found in the phone data"
+    echo "    option  - one of the following"
+    echo "       -city   - also print city"
+    echo "       -office - also print office number"
+    echo "       -empno  - also print employee number"
+    echo "       -bus    - also print business unit"
+    echo "       -all    - print full phone record"
+    echo
+    echo "Examples:"
+    echo "    phone mike sieweke - prints names with both \"mike\" and \"sieweke\""
+    echo "    phone carol        - prints names with \"carol\""
+    echo "    phone duluth       - prints names located in Duluth"
+}
+
+function get_fields {
+    fields=`head -1 $phonefile`
+    i=0
+    fields=${fields#\"}
+    fields="${fields%\"*}\",\""
+    echo .$fields.
+    while [ "$fields" != "" ] ; do
+        (( i = i + 1 ))
+        field="${fields%%\",\"*}"
+        fields="${fields#*\",\"}"
+        f[i]=$field
+        echo ${f[i]}
+    done
+}
+
+function print_all {
+    line=$*
+    i=0
+    line=${line#\"}
+    line="${line%\"*}\",\""
+    echo .$line.
+    while [ "$line" != "" ] ; do
+        (( i = i + 1 ))
+        field="${line%%\",\"*}"
+        line="${line#*\",\"}"
+        echo "${f[i]} : $field"
+    done
+}
+
+
+phonefile=/projects/sw/BrcmUtils/broadcom.csv
+
+#get_fields
+#print_all
+
+#awk -f ~/commands/phone.awk pat1=msieweke ~/unix_phone.csv
+
+if [ ! -e ${phonefile} ] ; then
+    echo "Error: Phone data file ${phonefile} does not exist."
+    exit
+fi
+
+allinfo=no
+fields="\$2,\$3,\$6,\$9,\$11"
+grepstring=""
+
+while [ "$1" != "" ] ; do
+    parm="$1"
+    shift
+    case ${parm} in
+        "?"|"-?"|help|-help)
+            give_help
+            exit
+            ;;
+        -all)    allinfo="yes"            ;;
+        -office) fields="${fields},\$8"   ;;
+        -city)   fields="${fields},\$7"   ;;
+        -empno)  fields="${fields},\$1"   ;;
+        -bus)    fields="${fields},\$13"  ;;
+        -f*)     fields="${fields},\$${parm:2}" ;;
+        *)
+            grepstring="${grepstring} grep -i ${parm} |"
+            ;;
+    esac
+done
+
+if [ "${grepstring}" == "" ] ; then
+    give_help
+    exit
+fi
+
+awkstring="{print}"
+# format="%-14s %-14s %-13s  %s  %s  %s  %s  %s"
+if [ ${allinfo} == no ] ; then
+    awkstring="{printf \"%-14s %-14s %-13s  %s  %s  %s  %s  %s\n\",${fields},\"\",\"\",\"\",\"\"}"
+fi
+
+echo
+#echo "cat ${phonefile} | ${grepstring%|} | awk -F  ,     ${awkstring}"
+      cat ${phonefile} | ${grepstring%|} | awk -F '","' "${awkstring}"
+echo

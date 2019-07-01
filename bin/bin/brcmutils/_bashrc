@@ -1,0 +1,5 @@
+#!/bin/bash
+
+if [ -e /tools/brcmutils/swgrp_rc.bash ] ; then
+   . /tools/brcmutils/swgrp_rc.bash
+fi

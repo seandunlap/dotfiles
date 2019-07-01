@@ -1,0 +1,21 @@
+#!/bin/bash
+
+path="$PATH"
+
+if [ "$1" != "" ] ; then
+    eval path="\$$1"
+    if [ "$path" == "" ] ; then
+        echo "Error: Parameter \"$1\" is not a valid environment variable."
+#        echo "Usage: splitpath [env-var]"
+    fi
+fi
+
+# Change spaces to plus signs.  There may be spaces in the path names, but
+# we don't want the "for" command to use those spaces.
+modPATH=${path// /+}
+
+# Change colons to spaces so the path can be split at colon characters.
+for f in ${modPATH//:/ } ; do
+    # Replace the spaces we changed to plus characters and print.
+    echo "${f//+/ }"
+done

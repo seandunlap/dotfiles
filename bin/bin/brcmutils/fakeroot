@@ -1,0 +1,16 @@
+#! /bin/sh
+
+CmdName=`basename $0`
+TOOL=fakeroot_1.5.10
+TOOLDIR=/tools/brcmutils
+OSys=`OSid`
+
+NEWPATH=$TOOLDIR/$OSys/bin
+
+PATH=$NEWPATH:$PATH; export PATH
+
+if [ -f $TOOLDIR/$TOOL/$OSys/bin/${CmdName} ]; then
+   exec $TOOLDIR/$TOOL/$OSys/bin/${CmdName} ${1+"$@"}
+fi
+
+/bin/echo The binary ${CmdName} does not exist in $TOOLDIR/$TOOL/$OSys

@@ -1,0 +1,11 @@
+SWCM-XXXXX: JIRA Ticket Summary
+
+76 columns ends here.......................................................|
+
+Longer description, referencing at least one Jira ticket.  This can be
+several paragraphs long if needed, and may include (short) crash dumps
+or log snippets to illustrate the problem. Lines should wrap at 76
+characters, and should be separated from the one-line short description
+with a single blank line.
+
+refs #SWCM-XXXXX

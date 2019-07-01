@@ -1,0 +1,25 @@
+#!/bin/bash
+
+parms=$*
+shift $#
+startdir=$PWD
+
+# Find the root folder for copying to /tmp.
+. root.bash
+
+linktree.bash
+
+reldir=""
+while [ $startdir != $PWD ] ; do
+    reldir=${startdir##*/}/$reldir
+    startdir=${startdir%/*}
+done
+
+projdir=${PWD##*/}
+cd /tmp/$USER/$projdir/$reldir
+
+echo $PWD
+$parms
+
+echo "Copying output dir back to origin..."
+cp -pr * $startdir

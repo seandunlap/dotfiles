@@ -1,0 +1,40 @@
+#!/bin/bash
+
+if [[ -n `ifconfig en5 2> /dev/null` ]] ; then
+  if [[ -n `ifconfig en6 2> /dev/null` ]] ; then
+    sudo route -n add default 44.0.15.1
+    sudo route -n add 10.24.38.0/24 44.0.15.1
+    sudo route -n add 10.24.39.0/24 44.0.15.1
+    sudo route -n add 10.38.0.0/16 44.0.15.1
+    sudo route -n add 10.39.0.0/16 44.0.15.1
+
+    sudo route -n add 192.0.0.0/8 10.24.64.1
+    sudo route -n add 10.0.0.0/8 10.24.64.1
+  fi
+fi
+
+
+# Create this file: /Library/LaunchAgents/com.dunlap.scripts.routes.static.plist
+
+# <!DOCTYPE plist PUBLIC -//Apple Computer//DTD PLIST 1.0//EN http://www.apple.com/DTDs/PropertyList-1.0.dtd>
+# <plist version="1.0">
+#    <dict>
+#        <key>Label</key>
+#        <string>com.dunlap.scripts.routes.static</string>
+#        <key>Program</key>
+#        <string>/Users/sd903151/bin/static-routes.sh</string>
+#        <key>ServiceDescription</key>
+#        <string>Add static routes for Sean's dual-NIC setup</string>
+#        <key>RunAtLoad</key>
+#        <true/>
+#        <key>KeepAlive</key>
+#        <true/>
+#        <key>StandardErrorPath</key>
+#        <string>/dev/null</string>
+#        <key>StandardOutPath</key>
+#        <string>/dev/null</string>
+#    </dict>
+#</plist>
+
+# This run this command to install it so it run automatically on reboot
+# launchctl load ~/Library/LaunchAgents/com.docker.scripts.routes.static.plist

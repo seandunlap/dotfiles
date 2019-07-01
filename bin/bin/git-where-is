@@ -1,0 +1,84 @@
+#!/bin/sh
+NAME='https://github.com/gibson042/git-log-except'
+VERSION=0.0.1
+DESCRIPTION='Show git commits not matching provided filters, honoring all git log options.'
+LICENSE='This is free and unencumbered software released into the public domain.'
+USAGE='[--]<command> |\
+       [[--]verbose] [<SWCM-xxxxx>] [-- <output options>] [<commit range>] [[--] <path>...]\
+\
+Commands:\
+   help     Display this message\
+   version  Show software version'
+
+# Exit immediately upon failure
+set -e
+
+# Self-identify, ignoring a useless $0 in git alias invocations
+case "$1" in --version|version) echo $VERSION >&2 ; exit 64 ;; esac
+CMD="$0"
+if { printf %s "$CMD" | grep [[:space:]] && ! command -v "$CMD"; } >/dev/null 2>&1 ; then CMD=; fi
+
+# usage [<error message> [<exit code>]]
+usage () {
+	# TTY output gets a bolded name and underlined URL
+	if [ -t 2 ]; then
+		ansify='{ sub(/[^/]+$/, "\x1b[1m&\x1b[22m"); if(/[/]/) $0="\x1b[4m" $0 "\x1b[0m"; print }'
+		NAME="`echo $NAME | awk "$ansify"`"
+	fi
+
+	message="$1"
+	if [ "z$1" = z ]; then message="`printf '%s %s\n%s' "$NAME" "$VERSION" "$DESCRIPTION"`"; fi
+	printf '%s\n\nUsage: %s %s\n\n%s\n' "$message" "$CMD" "$USAGE" "$LICENSE" | sed 's/\\//g' >&2
+
+	if [ "z$2" != z ]; then exit $2; fi
+	exit 64
+}
+
+main () {
+	case ":$1" in :--help|:help|:) usage ;; esac
+	VERBOSE=:
+	case "$1" in --verbose|verbose) shift; VERBOSE= ;; esac
+
+	# Chunk CLI options/arguments
+	omit=
+	format=
+	rev_path=
+	section=omit
+	for opt do
+		case "$opt" in
+			--)
+				if [ $section = omit ]; then section=format; continue; fi
+				if [ $section = format ]; then section=rev_path; continue; fi
+				;;
+			-*)
+				if [ $section = omit ]; then omit="$omit `quote "$opt"`"; continue; fi
+				if [ $section = format ]; then format="$format `quote "$opt"`"; continue; fi
+				;;
+		esac
+		rev_path="$rev_path `quote "$opt"`"
+	done
+	$VERBOSE printf >&2 'exclude:%s\nformat:%s\nrevision/path:%s\n' "$omit" "$format" "$rev_path"
+
+	# Write the commit hashes to an auto-removed temp file
+	tmp="`mktemp`"
+	$VERBOSE printf >&2 'temp file: %s\n' "$tmp"
+	trap 'opt=; if [ "z$VERBOSE" != z: ]; then opt=-v; fi; rm $opt "$tmp" >&2' 0
+	if [ "z$omit" != z ]; then eval "set -- git log $omit --format=%H $rev_path"; "$@" >"$tmp"; fi
+	$VERBOSE awk >&2 -v MSG='commits to exclude: ' -v HEAD=3 \
+		'NR<=HEAD{l=l ORS $0} END{print MSG NR l; if(NR>HEAD) print "..."; else print "---"}' "$tmp"
+
+	# Log _only_ (--no-walk) those commits NOT found above
+	{ eval "set -- git log --format=%H $rev_path"; "$@"; } | grep -vFf "$tmp" |
+		{ eval "set -- git log $format --stdin --no-walk"; "$@"; }
+}
+
+# quote <string>
+# Safely quote a string for eval
+# http://www.etalabs.net/sh_tricks.html
+quote () { printf '%s\n' "$1" | sed "s/'/'\\\\''/g;1s/^/'/;\$s/\$/'/"; }
+
+# Normal mode relies on script arguments
+if [ "z$CMD" != z ]; then main "$@"; exit; fi
+
+# git alias mode uses the appended arguments
+main

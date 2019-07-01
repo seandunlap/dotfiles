@@ -1,0 +1,26 @@
+#!/bin/sh
+
+NAME="git-cleanup-branch"
+DESCRIPTION='Removes Auto-library-build commits from the range $1..$2'
+USAGE='git-cleanup-branch RLS_Prod_6.1.2mp2_B1 Prod_6.1.2mp2-hotfix-2'
+
+git filter-branch --commit-filter '
+        if [ "$GIT_AUTHOR_NAME" = "Gurpreet Malhotra" ];
+        then
+                skip_commit "$@";
+        else
+                git commit-tree "$@";
+        fi' $1
+
+skip_commit()
+{
+        shift;
+        while [ -n "$1" ];
+        do
+                shift;
+                map "$1";
+                shift;
+        done;
+}
+
+#git log --oneline --no-decorate --reverse RLS_Prod_6.1.2mp2_B1...Prod_6.1.2mp2 | grep -v Auto- | cut -d' ' -f1 | xargs -P1 -n1 -I{} git format-patch -k --stdout {}~..{} | git am -3 -k

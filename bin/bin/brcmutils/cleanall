@@ -1,0 +1,61 @@
+#!/bin/bash
+
+opt=
+
+if [ "$1" == "" ] ; then
+    echo    "This will delete all build directories under the current directory."
+    read -p "Are you sure you want to do this? [n] " response
+    if [ "$response" != "y" ] ; then
+        exit
+    fi
+elif [ "$1" == "-y" ] ; then
+    opt=y
+elif [ "$1" == "-p" ] ; then
+    opt=p
+else
+    echo "Remove all build folders under the current folder."
+    echo "Usage: cleanall [-y]"
+    echo "  -y  Don't ask \"Are you sure?\""
+    exit
+fi
+
+buildDirs=`find . -name defines.h.new | sed -e "s/defines.h.new//"`
+
+if [ "$buildDirs" == "" ] ; then
+    echo "No build directories found..."
+fi
+
+#echo "buildDirs=$buildDirs"
+
+for d in $buildDirs ; do
+    if [ "$opt" == "p" ] ; then
+        read -p "Clean $d? (y)" yesno
+        if [ "$yesno" == "" ] ; then
+            yesno=y
+        fi
+        if [ "$yesno" != "y" ] ; then
+            continue
+        fi
+    else
+        echo "Cleaning $d"
+    fi
+    pushd $d >/dev/null
+    rm -f *.o *.bin ecram.* *.map.d *.shortmap *.elf *.dasm *.h *.new *.txt *.ld *.log *.bak.cpp eCos.map t.* *.d
+    popd >/dev/null
+    rmdir $d
+done
+
+if [ -d ../../../cablex ] ; then
+    echo "Cleaning CxC files..."
+    rm -rf ../../../cablex/obj/eCos/bcm9*
+    rm -rf ../../../cablex/lib/eCos/bcm9*
+fi
+
+if [ -d ../../../rbb_cm_ecos ] ; then
+    echo "Cleaning eCos files..."
+    pushd ../../../rbb_cm_ecos/ecos-src >/dev/null
+    for d in bcm* ; do
+        rm -rf $d/$d_build
+        rm -rf $d/$d_install
+    done
+fi

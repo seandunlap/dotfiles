@@ -1,0 +1,19 @@
+<!DOCTYPE plist PUBLIC -//Apple Computer//DTD PLIST 1.0//EN http://www.apple.com/DTDs/PropertyList-1.0.dtd>
+<plist version="1.0">
+    <dict>
+        <key>Label</key>
+        <string>com.dunlap.routes.scripts.static.plist</string>
+        <key>Program</key>
+        <string>/Users/sd903151/bin/static-routes.bash</string>
+        <key>ServiceDescription</key>
+        <string>Add statuc routes for Sean's dual-NIC setup</string>
+        <key>RunAtLoad</key>
+        <true/>
+        <key>KeepAlive</key>
+        <true/>
+        <key>StandardErrorPath</key>
+        <string>/dev/null</string>
+        <key>StandardOutPath</key>
+        <string>/dev/null</string>
+    </dict>
+</plist>

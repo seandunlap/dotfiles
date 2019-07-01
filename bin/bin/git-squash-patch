@@ -1,0 +1,20 @@
+#!/bin/bash
+
+NAME="git-squash-patch"
+DESCRIPTION='Generate a single squashed patch from commit range $1..$2'
+USAGE='git-cleanup-branch RLS_Prod_6.1.2mp2_B1 HEAD'
+
+cd $(git rev-parse --show-toplevel)
+git clean -fd
+git checkout $2
+git branch -D patch-branch
+git checkout -b patch-branch $1
+git merge --squash $2
+git commit -m "$3"
+echo -e "\nApply this patch to pure BRCM release $1 with the following command:\n\n $ cat $3.patch | git am -3 -k\n\n------------------------------\n\n" >> $3.COMMIT-NOTES.txt
+git log $1..$2 --oneline | grep -v Auto- | cut -d ' ' -f 1 | xargs -P 1 -n 1 -I {} sh -c "git log --no-decorate -1 {}" | grep -v 'refs #' | grep -v 'cherry picked from' >> $3.COMMIT-NOTES.txt
+git notes add -f -F Prod_17.2_d31_hotfix-10-6-2017.COMMIT-NOTES.txt
+git format-patch -k --no-numbered --binary --unified=10000 --notes --stdout HEAD~..HEAD > $3.patch
+git checkout $2
+git branch -D patch-branch
+ls -all

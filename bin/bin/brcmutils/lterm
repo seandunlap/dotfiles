@@ -1,0 +1,191 @@
+#!/bin/bash
+
+function GiveHelp {
+    echo 'The "lterm" command starts a terminal window on a Linux host.'
+    echo "  Usage: lterm [--title=<title>] [--execute <command>]"
+}
+
+
+function GetLtermNum {
+    maxltermNum=0
+
+    # Find existing lterm jobs.
+    for l in `/tools/bin/bjobs -w | grep lterm` ; do
+        if [ "${l/*=lterm/}" != "$l" ] ; then
+            ltitle=${l/*title=/}
+            ltermNum=${ltitle/lterm/}
+            if [ "$ltermNum" == "" ] ; then
+                ltermNum=0
+            fi
+            # Make sure ltermNum is an integer.  If it's a string, this makes it 0.
+            (( ltermNum = ltermNum + 0 ))
+            if [ $ltermNum -gt $maxltermNum ] ; then
+                maxltermNum=$ltermNum
+            fi
+        fi
+    done
+
+    (( termNum = maxltermNum + 1 ))
+    title=lterm$termNum
+}
+
+title="..none.."
+xCommand=""
+display=""
+newdir=`pwd`
+#queue_type=rhel40
+#queue_name=atl-Irbb
+queue_name=atl-Irbbsw
+host=""
+
+while [ $# -gt 0 ] ; do
+    parm=$1
+    case $parm in
+        -help|--help)
+            GiveHelp
+            exit
+            ;;
+        -g)
+            LTERM_TERMINAL="gnome-terminal"
+            ;;
+        -k)
+            LTERM_TERMINAL="konsole"
+            ;;
+        -t*|--title=*)
+            if [ "${parm/--title=/}" != "$parm" ] ; then
+                parm=${parm/--title=/}
+            else
+                parm=${parm/-t/}
+            fi
+            if [ "$title" != "..none.." ] ; then
+                echo "Error: Only one title per window!"
+                exit 1
+            fi
+            if [ "${parm}" == "" ] ; then
+                shift
+                title=$1
+            else
+                title=${parm}
+            fi
+            ;;
+        -x|--execute)
+            xCommand="$*"
+            shift $#
+            if [ "$xCommand" == "" ] ; then
+                echo "Error: Missing command!"
+                exit 1
+            fi
+            ;;
+        -e*|--command=*)
+            if [ "${parm/--command=/}" != "$parm" ] ; then
+                parm=${parm/--command=/}
+            else
+                parm=${parm/-e/}
+            fi
+            xCommand=$parm
+            if [ "$parm" == "" ] ; then
+                shift
+                xCommand=$1
+            fi
+            if [ "$xCommand" == "" ] ; then
+                echo "Error: Missing command!"
+                exit 1
+            fi
+            ;;
+        --working-directory=*)
+            newdir=${parm/--working-directory=/}
+            if [ "$newdir" == "" ] ; then
+                echo "Error: Missing directory!"
+                exit 1
+            fi
+            ;;
+        --display=*)
+            display=${parm/--display=/}
+            if [ "$display" == "" ] ; then
+                echo "Error: Missing command!"
+                exit 1
+            fi
+            display="$parm"
+            ;;
+        -R*)
+            parm=${parm#-R}
+            queue_type="$parm"
+            if [ "$parm" == "" ] ; then
+                shift
+                queue_type=$1
+            fi
+            if [ "$queue_type" == "" ] ; then\
+                echo  "Error: Missing queue type!"
+                exit 1
+            fi
+            ;;
+        -q*)
+            parm=${parm#-q}
+            queue_name="$parm"
+            if [ "$parm" == "" ] ; then
+                shift
+                queue_name=$1
+            fi
+            if [ "$queue_name" == "" ] ; then\
+                echo  "Error: Missing queue name!"
+                exit 1
+            fi
+            ;;
+        -m*)
+            parm=${parm#-m}
+            host="$parm"
+            if [ "$parm" == "" ] ; then
+                shift
+                host=$1
+            fi
+            if [ "$host" == "" ] ; then\
+                echo  "Error: Missing host name!"
+                exit 1
+            fi
+            host=-m$host
+            ;;
+        *)
+            echo "Error: Unrecognized parameter: $parm"
+            exit 1
+            ;;
+    esac
+    shift
+done
+
+if [ "$title" == "..none.." ] ; then
+    GetLtermNum
+fi
+
+if [ "$title" == "" ] ; then
+    echo "Error: Missing title!"
+    exit 1
+fi
+
+if [ "${title/=/}" != "$title" ] ; then
+    echo "Error: Title may not contain '=' character!"
+    exit 1
+fi
+
+geometry=""
+
+if [ "$LTERM_GEOMETRY" == "" ] ; then
+    LTERM_GEOMETRY=120x40
+fi
+
+if [ "$LTERM_TERMINAL" == "" ] ; then
+    LTERM_TERMINAL=konsole
+fi
+
+if [ "$LTERM_TERMINAL" == "konsole" ] ; then
+#    geometry="--vt_sz $LTERM_GEOMETRY"
+    geometry="--geometry=$LTERM_GEOMETRY"
+    terminal="konsole --workdir $newdir --title $title $geometry $display $xCommand"
+else
+    geometry="--geometry=$LTERM_GEOMETRY"
+    terminal="gnome-terminal --working-directory=$newdir --title=$title $geometry $display $xCommand"
+fi
+
+echo "$terminal"
+/tools/bin/bsub -q $queue_name $host -o term.out $terminal
+#/tools/bin/bsub -q $queue_name -R $queue_type $host -o term.out $terminal
+#/tools/bin/bsub -q $queue_name -R $queue_type $host -o term.out gnome-terminal --geometry=120x40 --working-directory=$newdir $display --title=$title $xCommand

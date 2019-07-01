@@ -1,0 +1,52 @@
+#!/bin/bash
+
+# This gives the number of jobs currently executing.
+lactive=`ps aux | sed -e 's/  */ /g' | cut -d ' ' -f 8 | grep -e "^R" | wc -l`
+
+cmd=$1
+shift
+
+# Don't check remote load if local load is low (performance enhancement).
+if (( lactive < 4 )) ; then
+    echo "Local load is light; executing locally"
+    $cmd $*
+    exit
+fi
+
+# To get a current list of interactive hosts, use this command:
+# lshosts -q atl-Irbbsw
+# To get a current list in the "hosts" variable:
+# hosts="`lshosts -q atl-Irbbsw | grep ^lc-atla | cut -f 1 -d ' '"
+
+hosts="lc-atl-204 lc-atl-205 lc-atla-106 lc-atla-220 lc-atla-104"
+localhost=$HOSTNAME
+
+# Find the remote host with lightest load.
+for remotehost in $hosts ; do
+
+    # Skip local host.
+    if [ $remotehost == $localhost ] ; then
+        continue
+    fi
+
+    # This gives the number of jobs currently executing.
+    ractive=`rsh $remotehost ps aux | sed -e 's/  */ /g' | cut -d ' ' -f 8 | grep -e "^R" | wc -l`
+
+    if (( ractive < 4 )) ; then
+        break
+    fi
+
+done
+
+echo "local active $lactive, $remotehost active $ractive"
+
+if (( lactive > 6 && ractive > 6 )) ; then
+    echo "Local and remote loads are high; submitting job"
+    submit -I $cmd $*
+elif (( lactive > ractive )) ; then
+    echo "Local load is high; executing on $remotehost"
+    rsh $remotehost "cd $PWD; $cmd $*"
+else
+    echo "Remote load is high; executing locally"
+    $cmd $*
+fi

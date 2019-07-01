@@ -1,0 +1,1 @@
+git cherry -v Prod_17.3_d31 Prod_6.1.2mp2 RLS_Prod_6.1.2mp2_B1 | grep + | grep -v Auto- | cut -d' ' -f2 | xargs -P1 -n1 -I{} git format-patch -k --stdout {}~..{} | git am -3 -k

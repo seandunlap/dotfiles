@@ -1,0 +1,4 @@
+# This makes the Exceed mapping of the "End" key work correctly.
+"\e[4~":end-of-line
+"\e[3~":delete-char
+TAB:menu-complete

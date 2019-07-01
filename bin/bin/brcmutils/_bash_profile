@@ -1,0 +1,11 @@
+#!/bin/sh
+
+if [ -e /tools/brcmutils/swgrp_profile.bash ] ; then
+   . /tools/brcmutils/swgrp_profile.bash
+fi
+
+shopt -s extglob
+
+# Open an "lterm" window in your BFC work directory.
+work
+lterm

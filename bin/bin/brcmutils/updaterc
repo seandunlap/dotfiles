@@ -1,0 +1,39 @@
+#!/bin/bash
+
+function getrc {
+    rcfile=$1
+
+    # See if the file already matches the one in brcmutils.
+    cmp --silent ~/$rcfile /tools/brcmutils/${rcfile}
+    if [ $? == 0 ] ; then
+        echo "File $rcfile is up-to-date."
+        return
+    fi
+
+    # If the file doesn't exist, just copy it.
+    if [ ! -e ~/$rcfile ] ; then
+
+        echo "Copying /tools/brcmutils/${rcfile} -> ~/${rcfile}"
+        /bin/cp /tools/brcmutils/${rcfile} ~/${rcfile}
+
+    # The file exists, so we need to save it
+    else
+
+        echo -n "Saving $rcfile as ${rcfile}_save, and getting new ${rcfile}.  Continue? (y/n) [y]"
+        read response
+        if [ "$response" == "n" ] ; then
+            return
+        fi
+
+        echo "Copying ~/$rcfile -> ~/$rcfile.save"
+        cp -v ~/$rcfile ~/$rcfile.save
+        if [ $? == 0 ] ; then
+            echo "Copying /tools/brcmutils/${rcfile} -> ~/${rcfile}"
+            /bin/cp /tools/brcmutils/${rcfile} ~/${rcfile}
+        fi
+    fi
+}
+
+for f in .bashrc .bash_profile .inputrc ; do
+    getrc $f
+done

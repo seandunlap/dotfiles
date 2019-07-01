@@ -1,0 +1,57 @@
+#!/bin/bash
+
+curdir=`pwd`
+
+if [ "$1" == "" ] ; then
+    echo "Usage: parsemap <map-file>"
+    echo "       parsemap bcm93368vmcmvendor_slim/ecram.map.d"
+    exit
+fi
+
+mapfile=$curdir/$1
+dirfile=$curdir/dirfile.lis
+chip=${1:4:4}
+if [ $chip == "3843" ] ; then
+    chip=3384
+fi
+
+if [ ! -f $mapfile ] ; then
+    echo "Error: Map file not found: $mapfile"
+    exit
+fi
+
+if [ ! -d ../../CableModemBsp/bsp_bcm9$chip ] ; then
+    echo "Error: BSP not found for $chip"
+    exit
+fi
+
+shift
+rest=$*
+shift $#
+
+. top.bash
+
+if [ -e $dirfile ] ; then
+    echo "Using old dirfile.lis"
+else
+    find . -name \*.cpp -o -name \*.c -o -name \*.s >$dirfile
+fi
+
+# See if the code was built with CableHome.  Let parsemap know if it was.
+grep -q CableHome $mapfile
+if [ $? == 0 ] ; then
+    rest="$rest cablehome"
+fi
+
+touch t.t
+rexx parsemap $mapfile $dirfile t.t chip $chip $rest
+
+sort t.t >t.sort
+
+rexx combine t.sort 1 4
+
+rexx combinedirs t.combine
+rexx combinefiles t.sort > t.combinefiles
+
+echo "Combined size =" `rexx sumcol t.combine 1`
+echo "Look for output in t.combine in `pwd`."

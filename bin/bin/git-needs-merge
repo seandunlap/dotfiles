@@ -1,0 +1,48 @@
+#!/bin/sh
+NAME="git cherry-pick-candidates"
+VERSION=0.0.1
+DESCRIPTION='Show commits in first argument that need to be merged to second argument'
+LICENSE='Report bugs, feature requests to Sean Dunlap'
+USAGE='git needs-merge <source-ref> <dest-ref>'
+
+# Exit immediately upon failure, and command printing for reference
+set -e
+
+# uncomment to enable script debugging
+#set -x
+
+# Self-identify, ignoring a useless $0 in git alias invocations
+case "$1" in --version|version) echo $VERSION >&2 ; exit 64 ;; esac
+CMD="$0"
+if { printf %s "$CMD" | grep [[:space:]] && ! command -v "$CMD"; } >/dev/null 2>&1 ; then CMD=; fi
+
+# usage [<error message> [<exit code>]]
+usage () {
+        # TTY output gets a bolded name and underlined URL
+        if [ -t 2 ]; then
+                ansify='{ sub(/[^/]+$/, "\x1b[1m&\x1b[22m"); if(/[/]/) $0="\x1b[4m" $0 "\x1b[0m"; print }'
+                NAME="`echo $NAME | awk "$ansify"`"
+        fi
+
+        message="$1"
+        if [ "z$1" = z ]; then message="`printf '%s %s\n%s' "$NAME" "$VERSION" "$DESCRIPTION"`"; fi
+        printf '%s\n\nUsage: %s %s\n\n%s\n' "$message" "$CMD" "$USAGE" "$LICENSE" | sed 's/\\//g' >&2
+
+        if [ "z$2" != z ]; then exit $2; fi
+        exit 64
+}
+
+main () {
+
+    echo "========================================================================================"
+    echo " SWCMs in the range $1..$2 that should be considered for cherry-picking to $3"
+    echo "========================================================================================"
+    git cherry -v --abbrev RLS_Prod_17.3_d31_B1 origin/Prod_6.1.2mp2 RLS_Prod_6.1.2mp2_B1 | grep -v Auto- | grep + | cut -d' ' -f3- | sort | uniq
+    echo ""
+}
+
+# Normal mode relies on script arguments
+if [ "z$CMD" != z ]; then main "$@"; exit; fi
+
+# git alias mode uses the appended arguments
+main

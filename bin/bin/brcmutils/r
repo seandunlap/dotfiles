@@ -1,0 +1,95 @@
+#!/bin/bash
+
+# This gives the number of jobs currently executing.
+lactive=`ps aux | sed -e 's/  */ /g' | cut -d ' ' -f 8 | grep -e "^R" | wc -l`
+
+force=0
+hosts=
+
+while [ "${1:0:1}" == "-" ] ; do
+    parm=$1
+    shift
+    case $parm in
+        -f)
+            force=1
+            ;;
+        -h)
+            force=1
+            hosts=$1
+            shift
+            ;;
+        *)
+            echo "Error: Unrecognized parameter - $parm"
+            exit
+            ;;
+    esac
+done
+
+cmd=$1
+shift
+
+# Don't check remote load if local load is low (performance enhancement).
+if (( ( force == 0 ) && ( lactive < 3 ) )) ; then
+    echo "Local load is light; executing locally"
+    $cmd $*
+    exit
+fi
+
+# To get a current list of interactive hosts, use this command:
+# lshosts -q atl-Irbbsw
+# To get a current list in the "hosts" variable:
+# hosts="`lshosts -q atl-Irbbsw | grep ^lc-atl | sort -r | cut -f 1 -d ' '`"
+# This puts the higher numbers last, since they tend to be newer.
+
+if [ "$hosts" == "" ] ; then
+    hosts="lc-atl-344 lc-atl-342 lc-atl-343 lc-atl-221 lc-atl-204 lc-atl-205"
+fi
+localhost=$HOSTNAME
+
+remotehost=
+rhactive=256
+# Find the remote host with lightest load.
+for rh in $hosts ; do
+
+    # Skip local host.
+    if [ $rh == $localhost ] ; then
+        continue
+    fi
+
+    if [ "$remotehost" == "" ] ; then
+        remotehost=$rh
+    fi
+
+    # This gives the number of jobs currently executing.
+    ractive=`rsh $rh ps aux | sed -e 's/  */ /g' | cut -d ' ' -f 8 | grep -e "^R" | wc -l`
+
+    if (( ractive < rhactive )) ; then
+        rhactive=$ractive
+        remotehost=$rh
+    fi
+    if (( ( force == 1 ) && ( ractive == 1 ) )) ; then
+        break
+    elif (( ractive < 3 )) ; then
+        break
+    fi
+
+done
+
+ractive=$rhactive
+
+echo "local active $lactive, $remotehost active $ractive"
+
+if (( lactive > 6 && ractive > 6 )) ; then
+    echo "Local and remote loads are high; submitting job"
+    submit -I $cmd $*
+elif (( lactive > ractive )) ; then
+    echo "Local load is higher ($lactive); executing on $remotehost"
+    rsh $remotehost "cd $PWD; LC_ALL=$LC_ALL $cmd $*"
+#elif (( ( force == 1 ) && ( lactive == ractive ) )) ; then
+elif (( force == 1 )) ; then
+    echo "Executing on $remotehost because of -f flag."
+    rsh $remotehost "cd $PWD; LC_ALL=$LC_ALL $cmd $*"
+else
+    echo "Remote load is higher; executing locally"
+    $cmd $*
+fi

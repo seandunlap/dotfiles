@@ -1,0 +1,19 @@
+#!/bin/sh
+
+# Exit immediately upon failure, and command printing for reference
+set -e
+
+# uncomment to enable script debugging
+set -x
+
+SOURCE_BRANCH="$1"
+shift 1
+SWCM_LIST=$(echo $1 | sed -i 's/ /|/g')
+
+MERGE_BASE=$(git merge-base HEAD ($SOURCE_BRANCH))
+
+echo 'Cherry-picking commits $SWCM_LIST from ' $SOURCE_BRANCH
+
+git cherry -v HEAD $SOURCE_BRANCH $SOURCE_BRANCH $SOURCE_BRANCH | \
+    grep + | grep -v Auto- | grep -E '$SWCM_LIST' \
+    cut -d' ' -f2 | xargs -P1 -n1 -I{} git format-patch -k --stdout {}~..{} | git am -3 -k

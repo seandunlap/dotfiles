@@ -1,0 +1,94 @@
+#!/bin/bash
+
+if [ "$1" == "ksubmit" ] ; then
+    shift
+    submittemp=$1
+    shift
+    echo "Current system load on $HOSTNAME:" | tee -a $submittemp
+    uptime
+    echo "Executing command: $*" | tee -a $submittemp
+    $* 2>&1 | tee -a $submittemp
+    echo
+    echo "Look in ${submittemp} for a complete build listing."
+    if [ "$LSB_INTERACTIVE" != "Y" ] ; then
+        echo "This window will self-destruct in 60 seconds..."
+        sleep 60
+    fi
+else
+    echo "$USER `date`" >> /tools/brcmutils/submit.log
+    interactive=0
+    serverType=rhel
+    submitOpts=""
+    hostOpts=""
+    queue=atl-rbb
+    while [ "${1:0:1}" == "-" ] ; do
+        parm="${1:0:2}"
+
+        # Handle parameters with no value.
+        noparm=1
+        case "$parm" in
+            -I)
+                interactive=1
+                ;;
+            -x)
+                hostOpts="-x"
+                ;;
+            *)
+                noparm=0
+        esac
+        if [ $noparm == 1 ] ; then
+            shift
+            continue
+        fi
+
+        # Handle parameters which take a value.
+        value="${1:2}"
+        if [ "$value" == "" ] ; then
+            shift
+            value=$1
+        fi
+        if [ "$value" == "" ] ; then
+            echo "Error: Missing value for $parm."
+            exit
+        fi
+        case $parm in
+            -b*)
+                submitOpts="-b $value"
+                ;;
+            -R*)
+                serverType=$value
+                ;;
+            -m*)
+                hostOpts="-m $value"
+                ;;
+            -q*)
+                queue="$value"
+                ;;
+            -n*)
+                submitOpts="-n $value"
+                ;;
+            *)
+                echo "Error: Unrecognized option: $1"
+                exit
+        esac
+        shift
+    done
+
+    submittemp=`mktemp submitXXXXXX`
+    if [ -e $submittemp ] ; then
+        mv $submittemp $submittemp.log
+    fi
+    submittemp=$submittemp.log
+
+    if [ $interactive == 1 ] ; then
+        bsub -q atl-rbb -I -R $serverType $submitOpts $hostOpts "ksubmit ksubmit $submittemp $*"
+    else
+        if [ "$DISPLAY" == "" ] ; then
+            echo "Error: The \"DISPLAY\" variable is not set."
+            exit 1
+        else
+            bsub -q $queue -R $serverType $submitOpts $hostOpts -o term.out konsole -e ksubmit ksubmit $submittemp $*
+            echo "Look in ${submittemp} for a complete build listing."
+        fi
+    fi
+fi

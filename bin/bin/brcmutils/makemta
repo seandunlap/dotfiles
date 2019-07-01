@@ -1,0 +1,173 @@
+#!/bin/bash
+
+
+function give_help {
+    echo "The makemta script finds the appropriate CableXchange application folder"
+    echo "and builds the application from there.  You may specify BFC build options"
+    echo "on the command line as you would with makeapp."
+    echo
+    echo "Usage:"
+    echo "    makemta <bfc-target> [bfc-option ...]"
+    echo
+    echo "Examples:"
+    echo "    makemta bcm93383wvg"
+    echo "    makemta bcm93383wvg pktc15"
+    echo
+    echo "For additional help, try one of these:"
+    echo "    makeapp help"
+    echo "    makemta <bfc-target> help"
+}
+
+pktc=pc20
+
+function ParseCommand {
+    cxc_target=""
+    cxc_opts=""
+    help=0
+    cmd_opts=$*
+    for o in $cmd_opts ; do
+        case $o in
+            eu|euro)
+                cxc_opts="${cxc_opts} euro=1"
+                ;;
+            cablevisionemta)
+                cxc_opts="${cxc_opts} cablevision=1"
+                ;;
+            certification)
+                cxc_opts="${cxc_opts} cert=1"
+                ;;
+            comcastemta)
+                cxc_opts="${cxc_opts} comcast=1"
+                ;;
+            coxemta)
+                cxc_opts="${cxc_opts} cox=1"
+                ;;
+            timewarneremta)
+                cxc_opts="${cxc_opts} timewarner=1"
+                ;;
+            upcemta)
+                cxc_opts="${cxc_opts} upc=1"
+                ;;
+            pktc15)
+                pktc=pc15
+                cxc_opts="${cxc_opts} pktc_ver=15"
+                if [ ! -e ../../Bfc/ecos/Custom/pktc15_macro.bash ] ; then
+                    cmd_opts=${cmd_opts/ pktc15/}
+                fi
+                ;;
+            sip)
+                cxc_opts="${cxc_opts} sip=1"
+                ;;
+            linux_on_tp1)
+                cxc_opts="${cxc_opts} linux_on_tp1=1"
+                ;;
+            nolinux_on_tp1)
+                cxc_opts="${cxc_opts} linux_on_tp1=0"
+                ;;
+            dect)
+                cxc_opts="${cxc_opts} dect=1"
+                ;;
+            nodect)
+                cxc_opts="${cxc_opts} dect=0"
+                ;;
+            help)
+                help=1
+                ;;
+            *=*)
+                cxc_opts="$cxc_opts $o"
+                cmd_opts=${cmd_opts/$o/}
+                ;;
+            *)
+                # Find the build target in the command line.
+                if [ -e Custom/${o}_settings.bash ] ; then
+                    bfc_target=$o
+                    cxc_target=${o/cmvendor/}
+                elif [ -e Custom/${o}cmvendor_settings.bash ] ; then
+                    bfc_target=$o
+                    cxc_target=$o
+                fi
+                ;;
+        esac
+    done
+}
+
+
+function echodo {
+    echo "----!! $*"
+    eval $*
+}
+
+
+cmd_opts="$*"
+shift $#
+
+# Find some useful info from the command line - target, us/euro, etc.
+ParseCommand $cmd_opts
+
+if [ "$cxc_target" == "" ] ; then
+    if [ $help == 0 ] ; then
+        echo "Error: Please specify a target.  For example:"
+        echo "   makemta bcm93368vcm"
+        echo "or"
+        echo "   makemta bcm93368vcm help"
+        exit
+    fi
+    give_help
+    exit
+fi
+
+source top.bash
+
+# Remove the BFC target so it won't be built twice.
+# Default to "c 4" compression, for speed.
+bfc_opts="c 4 ${cmd_opts/$bfc_target/}"
+
+
+# This is useful if you're running a different compiler.
+_gcc=`which mipsisa32-elf-gcc`
+_gcc_dir=${_gcc%/bin/mipsisa32-elf-gcc}
+CXC_COMPILER_ROOT_DIR=$_gcc_dir
+
+
+cablex_dir=../cablex
+if [ -d ../../rbb_cxc ] ; then
+    cablex_dir=../../rbb_cxc/$pktc/cablex
+fi
+
+if [ -d $cablex_dir ] ; then
+
+    cd $cablex_dir
+    source setenv_eCos.bash
+
+    if [ -d apps/$cxc_target ] ; then
+        cd apps/$cxc_target
+        if [ $help == 1 ] ; then
+            make help
+        else
+            # If the command line includes "clean", clean CxC too.
+            if [ "${bfc_opts/clean/}" != "${bfc_opts}" ] ; then
+                echodo "make clean bfc_opts=\"$bfc_opts\" $cxc_opts"
+            else
+                jobcount=2
+                # Linux has CPU info in this file, with one "processor" line for
+                # each CPU or hyperthread.
+                if [ -f /proc/cpuinfo ] ; then
+                    cpucount=`grep processor /proc/cpuinfo | wc -l`
+                    if [ $cpucount -gt 2 ] ; then
+                        jobcount=$cpucount
+                    fi
+                fi
+                bfc_opts="j $jobcount $bfc_opts"
+                echodo "make -j $jobcount bfc_opts=\"$bfc_opts\" $cxc_opts"
+#               echodo "make              bfc_opts=\"$bfc_opts\" $cxc_opts"
+            fi
+        fi
+        exit
+    else
+        echo "Error: No matching directory cablex/apps/$cxc_target"
+        exit
+    fi
+else
+    echo "Error: Can't find cablex/apps directory."
+    exit
+fi

@@ -1,0 +1,37 @@
+#!/bin/bash
+
+function GetRunCount {
+    shift
+    RunCount=$9
+}
+
+interactive=""
+
+if [ "$1" == "-I" ] ; then
+    interactive="-I"
+    shift
+fi
+
+# Detect a clean build and run it locally.
+fullcommand="$*"
+rightparm=${fullcommand##* }
+if [ "$rightparm" == "clean" ] ; then
+    echo "Running clean build locally..."
+    makeapp $*
+    exit
+fi
+
+if [ ! -e "makeapp" ] ; then
+    echo "makeapp: command not found"
+    exit
+fi
+
+# Any other command will run on the batch server.
+echo "$USER `date`" >> /tools/brcmutils/bmakeapp.log
+submit $interactive "makeapp $*"
+
+GetRunCount `bqueues atl-rbb | grep -v QUEUE`
+
+if [ $RunCount -gt 40 ] ; then
+    echo "The batch queues are busy, so your job may take a minute to start."
+fi

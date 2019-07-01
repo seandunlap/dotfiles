@@ -1,0 +1,153 @@
+#!/bin/bash
+
+function BranchToName {
+    case $branch in
+        4_4) name=Cadillac ;;
+    esac
+}
+
+
+function ParseCommand {
+    euro=""
+    suffix=""
+    Product=${1/cmvendor/}
+    new=0
+    cmd=$*
+    for o in $cmd ; do
+        case $o in
+            eu)         euro=_euro
+                        cxc_opts="${cxc_opts} euro=1"
+                        ;;
+            comcast)    suffix=_comcast${suffix} ;;
+            timewarner) suffix=_timewarner${suffix} ;;
+            pktc15)     suffix=${suffix}_pktc15
+                        cxc_opts="${cxc_opts} pktc_ver=15"
+if [ ! -e ../../Bfc/ecos/Custom/pktc15_macro.bash ] ; then
+    cmd=${cmd/ pktc15/}
+fi
+                        ;;
+            new)        new=1
+                        cmd=${cmd/ new/}
+                        ;;
+        esac
+    done
+}
+
+
+function Trylib {
+    # If there's a library directory for this product,
+    # use that directory for MTA libraries.
+    if [ -d $1 ] ; then
+        export ProductLibDir=$1
+    fi
+}
+
+
+function echodo {
+    echo "----!! $*"
+    eval $*
+}
+
+
+target=$1
+target=${target/cmvendor/}
+cmdline="$*"
+cxc_opts=
+
+# Get a product name by removing the suffix and "cmvendor" from the
+# output directory name, and adding "_euro" for Euro builds.
+ParseCommand $cmdline
+
+pushd . >/dev/null
+
+shift $#
+source top.bash
+set $cmd
+
+
+if [ -d ../cablex ] ; then
+
+    cd ../cablex
+    source setenv_eCos.bash
+
+    if [ -d apps/$target ] ; then
+        cd apps/$target
+        shift
+        cmdline="$*"
+        if [ "$1" == "help" ] ; then
+            make help
+        else
+            # If the command line includes "clean", clean CxC too.
+            if [ "${cmdline/clean/}" != "${cmdline}" ] ; then
+                echodo "make clean bfc_opts=\"$cmdline\" $cxc_opts"
+            else
+                jobcount=2
+                # Linux has CPU info in this file, with one "processor" line for
+                # each CPU or hyperthread.
+                if [ -f /proc/cpuinfo ] ; then
+                    cpucount=`grep processor /proc/cpuinfo | wc -l`
+                    if [ $cpucount -gt 2 ] ; then
+                        jobcount=$cpucount
+                    fi
+                fi
+                echodo "make -j $jobcount bfc_opts=\"$cmdline\" $cxc_opts"
+            fi
+        fi
+        exit
+    else
+        echo "No matching CxC target for $target"
+        exit
+    fi
+fi
+
+popd >/dev/null
+
+
+# See if the local library directory exists.
+MTA_LIBRARY_ROOT=/projects/bfc/CxClibs
+
+if [ -d $MTA_LIBRARY_ROOT ] ; then
+    version=`grep kVersion ../../Bfc/BfcApp/BfcSystemVersion.h`
+    branch=${version%.*}
+    branch=${branch#*\"}
+    branch=${branch//\./_}
+
+    # The first digit of the branch is the BFC version for the library.
+    bfc=_bfc${branch:0:1}
+
+    # Look for a branch version of the library directory, matching the
+    # old-style branch name.
+    branch=branch_$branch
+
+    if [ $new == 1 ] ; then
+        branch=${branch}_new
+    fi
+
+    if [ -e ${MTA_LIBRARY_ROOT}/${branch} ] ; then
+        MTA_LIBRARY_ROOT=/projects/bfc/CxClibs/${branch}
+    fi
+
+    if [ "${Product}" != "" ] ; then
+        # Look for library directories.  A later match supersedes an earlier one.
+        Trylib ${MTA_LIBRARY_ROOT}/${Product}${euro}${suffix}
+
+        export HH_LIB_PATH=${ProductLibDir}
+    fi
+
+fi
+
+if [ "$HH_LIB_PATH" == "" ] ; then
+    echo "!!!! Error: Can't find CxC source for $target"
+    exit
+else
+    echo ":::: Using CxC libraries from $HH_LIB_PATH"
+fi
+
+echodo makeapp $cmd
+
+#echo 1.${MTA_LIBRARY_ROOT}
+#echo 2.${Product}
+#echo 3.${euro}
+#echo 4.$suffix
+#echo 5.$HH_LIB_PATH
+#echo 6.${ProductLibDir}

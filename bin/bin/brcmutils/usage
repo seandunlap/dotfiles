@@ -1,0 +1,166 @@
+#!/bin/bash
+
+function format {
+    temp=$1
+    outval=`echo $1, | \
+       sed -r -e "s/([0-9])([0-9][0-9][0-9],)/\1,\2/g" \
+              -e "s/([0-9])([0-9][0-9][0-9],)/\1,\2/g" \
+              -e "s/([0-9])([0-9][0-9][0-9],)/\1,\2/g" \
+              -e "s/([0-9])([0-9][0-9][0-9],)/\1,\2/g" \
+              -e "s/,\$//"`
+    echo $outval
+}
+
+project=
+mtPoint=
+# Set username so the path through "projrpt" will be taken.
+user=$USER
+verbose=0
+
+# Parse parameters
+while [ $# != 0 ] ; do
+
+    param=$1
+    shift
+
+    case ${param} in
+        -u) user=$1
+            shift
+            ;;
+        -h|--help)
+            echo "Show disk and file usage on the current or specified project/filesystem."
+            echo "    Usage:  usage [project] [-u <username>|all]"
+            exit
+            ;;
+        -v) verbose=1
+            ;;
+        *)  if [ "$project" == "" ] ; then
+                project=$param
+            else
+                echo "Unrecognized parameter: $param"
+                exit
+            fi
+    esac
+
+done
+
+if [ "$project" == "" ] ; then
+
+    basedir=`pwd`
+
+    # Change the first two "/" characters to ",", and delete everything after
+    # any remaining "/" characters.  We only care about the first two directory
+    # levels because all project filesystems are mounted two levels deep.
+    basedir=${basedir/\//,}
+    basedir=${basedir/\//,}
+    basedir=${basedir%%/*}
+
+    # Change the comma characters back to slashes.
+    basedir=${basedir//,//}
+
+    # Find the "mount" command.  Under Solaris it's not in a normal user path,
+    # so we have to look for it in /etc.
+    mount=`which mount`
+    if [ "${mount:0:8}" == "no mount" ] ; then
+        if [ -e /etc/mount ] ; then
+            mount=/etc/mount
+        else
+            echo "Error: mount command not found.  Can't continue."
+            exit
+        fi
+    fi
+
+    # Look for the directory in the mount table.
+    mtPoint=`$mount -v | grep "$basedir " | sed -e "s/ .*//"`
+
+    if [ $verbose == 1 ] ; then
+        echo "Mount point:  $mtPoint"
+    fi
+
+    # If a mount point was found, it will be "server:filesystem ...".  If there's
+    # no ":" in the result, then a valid mount point wasn't found.
+    if [ "${mtPoint/:/}" == "$mtPoint" ] ; then
+        echo "Quota info not found for $basedir"
+        exit
+    fi
+
+    # The project name is the third level directory name in the filesystem.  So
+    # remove the server name and the first two directory names and any other
+    # trailing directory names.
+    project=${mtPoint#*:/*/*/}
+    project=${project%%/*}
+
+else
+
+    # The project was specified on the command line, so treat it as a mount
+    # point.  The "projrpt" command works with either a mount point or a project
+    # name.
+    mtPoint=$project
+
+fi
+
+# Get project quota info using the "projrpt" command.
+if [ "$user" == "all" ] ; then
+
+    # For "all" user info, print the raw output from projrpt.
+    projrpt $mtPoint
+
+elif [ "$user" != "" ] ; then
+
+    # When getting info for a single user, it's easier to provide our own
+    # heading rather than printing the one from "projrpt".
+#    echo "Project Name: $project"
+#    echo "                        K-Bytes              Files"
+#    echo "Type       ID      Used       Limit     Used      Limit"
+#    echo "-----   ------- ---------- ---------- --------- ---------"
+    # rsh xserver /tools/bin/projrpt $mtPoint | grep -e $user
+    set `projrpt $mtPoint | grep -e $user`
+
+    # A return code of 1 means the user wasn't found.
+    if [ $? == 1 ] ; then
+        echo "User $user not found in project $project."
+    fi
+
+    ((kavail=$4 - $3))
+    kusage=`format $3`
+    kquota=`format $4`
+    kavail=`format $kavail`
+    fusage=`format $5`
+    fquota=`format $6`
+    echo "Project Name: $project"
+    echo "              K-Bytes               |             Files"
+    echo "   Used        Limit     Available  |      Used           Limit"
+    echo "----------  ----------  ----------  |  ---------      ---------"
+    printf '%10s  %10s  %10s  |  %9s  %12s\n' $kusage $kquota $kavail $fusage $fquota
+
+else
+
+# !!! The "quota" command is broken on Linux.  It doesn't report the current
+# !!! user's quota
+
+    myquota=`quota | grep $mtPoint --after=1`
+    # A return code of 1 means the mount point wasn't found.
+    if [ $? != 0 ] ; then
+        echo "Error retrieving quota for $mtPoint."
+        exit
+    fi
+    if [ $myquota == "" ] ; then
+        echo "Error: Quota not returned!"
+        exit
+    fi
+    set $myquota
+    # The "usage" field may have a "*" appended if usage exceeds quota.
+    usage=${2/\*/}
+    quota=${3/\*/}
+    ((kavail=$quota - $usage))
+    kusage=`format $usage`
+    kquota=`format $quota`
+    kavail=`format $kavail`
+    fusage=`format $5`
+    fquota=`format $6`
+    echo "              K-Bytes               |             Files"
+    echo "   Used        Limit     Available  |      Used           Limit"
+    echo "----------  ----------  ----------  |  ---------      ---------"
+    printf '%10s  %10s  %10s  |  %9s  %12s\n' $kusage $kquota $kavail $fusage $fquota
+
+fi

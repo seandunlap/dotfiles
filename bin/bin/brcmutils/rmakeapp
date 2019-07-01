@@ -1,0 +1,76 @@
+#!/bin/bash
+
+r makeapp $*
+exit
+
+#----------------------------------------------------------------------------
+# Legacy code, no longer in use.
+
+localhost=$HOSTNAME
+host1=lc-atla-106
+host2=lc-atla-220
+
+if [ $localhost == $host1 ] ; then
+    remotehost=$host2
+else
+    remotehost=$host1
+fi
+
+localload=`uptime`
+localload=${localload#*: }
+localload=${localload%%,*}
+
+lactive=0
+ps aux >~/t.rmakeapp
+while read -r USER PID CPU MEM VSZ RSS TTY STAT rest ; do
+    if [ $STAT == "R" -o $STAT == "R+" ] ; then
+        ((lactive = lactive + 1))
+    fi
+done <~/t.rmakeapp
+
+# Don't check remote load if local load is low - performance enhancement.
+if (( lactive >= 4 )) ; then
+
+    remoteload=`rsh $remotehost uptime`
+    remoteload=${remoteload#*: }
+    remoteload=${remoteload%%,*}
+
+    ractive=0
+    rsh $remotehost ps aux >~/t.rmakeapp
+    while read -r USER PID CPU MEM VSZ RSS TTY STAT rest ; do
+        if [ $STAT == "R" -o $STAT == "R+" ] ; then
+            ((ractive = ractive + 1))
+        fi
+    done <~/t.rmakeapp
+
+    echo "local load $localload, remote load $remoteload"
+    echo "local active $lactive, remote active $ractive"
+
+fi
+
+## Remove decimal point and any leading zeroes.
+#lload=${localload/./}
+#lload=${lload#0}
+#lload=${lload#0}
+#lload=${lload#0}
+#rload=${remoteload/./}
+#rload=${rload#0}
+#rload=${rload#0}
+#rload=${rload#0}
+
+cmd=makeapp
+if [ "$1" == "mta" ] ; then
+    cmd=makemta
+    shift
+fi
+
+if (( lactive < 4 )) ; then
+    echo "Local active is light; executing locally"
+    $cmd $*
+elif (( lactive > ractive )) ; then
+    echo "Local active greater; executing remotely"
+    rsh $remotehost "cd $PWD; $cmd $*"
+else
+    echo "Remote active greater; executing locally"
+    $cmd $*
+fi
