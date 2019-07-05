@@ -36,3 +36,6 @@ alias tty="lsof | grep usbserial"
 alias tty2="screen -x <process id>"
 alias cliff="ssh cd901063@cliffd-MacBook"
 alias tftp_server='sudo launchctl load -F /System/Library/LaunchDaemons/tftp.plist & sudo launchctl start com.apple.tftpd'
+export PATH="/usr/local/sbin:$PATH"
+export PATH="/usr/local/sbin:$PATH"
+export PATH="/usr/local/sbin:$PATH"
